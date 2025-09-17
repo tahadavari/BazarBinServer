@@ -1,5 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
+# 
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BazarBin", "BazarBin\BazarBin.csproj", "{7799988E-2376-4145-9B17-D3BC39008F43}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{3E5475A4-905C-4BAA-A705-00A7AC9F1334}"
@@ -10,6 +11,14 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BazarBin.Mcp.Client", "BazarBin.Mcp.Client\BazarBin.Mcp.Client.csproj", "{B4FE346A-2EC4-4D86-9588-1013306103EC}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BazarBin.Mcp.Server", "BazarBin.Mcp.Server\BazarBin.Mcp.Server.csproj", "{7791E5A3-C73D-416F-A1F4-491D8E6A789C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BazarBin.Domain", "BazarBin.Domain\BazarBin.Domain.csproj", "{4CD7A567-DEB1-4E0F-B494-6439C2594C5D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BazarBin.Application", "BazarBin.Application\BazarBin.Application.csproj", "{6876E659-8590-4BDA-A367-2D4C4901CB0C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BazarBin.Infrastructure", "BazarBin.Infrastructure\BazarBin.Infrastructure.csproj", "{8F79FEAC-5B59-4247-BFF1-9865DB824EDE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BazarBin.Tests", "BazarBin.Tests\BazarBin.Tests.csproj", "{574C71D3-A2A9-4647-87FE-323B3D6BD926}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -29,5 +38,21 @@ Global
 		{7791E5A3-C73D-416F-A1F4-491D8E6A789C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7791E5A3-C73D-416F-A1F4-491D8E6A789C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7791E5A3-C73D-416F-A1F4-491D8E6A789C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4CD7A567-DEB1-4E0F-B494-6439C2594C5D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4CD7A567-DEB1-4E0F-B494-6439C2594C5D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4CD7A567-DEB1-4E0F-B494-6439C2594C5D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4CD7A567-DEB1-4E0F-B494-6439C2594C5D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6876E659-8590-4BDA-A367-2D4C4901CB0C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6876E659-8590-4BDA-A367-2D4C4901CB0C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6876E659-8590-4BDA-A367-2D4C4901CB0C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6876E659-8590-4BDA-A367-2D4C4901CB0C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8F79FEAC-5B59-4247-BFF1-9865DB824EDE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8F79FEAC-5B59-4247-BFF1-9865DB824EDE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8F79FEAC-5B59-4247-BFF1-9865DB824EDE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8F79FEAC-5B59-4247-BFF1-9865DB824EDE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{574C71D3-A2A9-4647-87FE-323B3D6BD926}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{574C71D3-A2A9-4647-87FE-323B3D6BD926}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{574C71D3-A2A9-4647-87FE-323B3D6BD926}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{574C71D3-A2A9-4647-87FE-323B3D6BD926}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

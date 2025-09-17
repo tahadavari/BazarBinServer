@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore BazarBin.sln
+
+      - name: Lint
+        run: dotnet format --verify-no-changes
+
+      - name: Build
+        run: dotnet build BazarBin.sln --no-restore -c Release
+
+      - name: Test
+        run: dotnet test BazarBin.sln --no-build --configuration Release
+        env:
+          DOTNET_CLI_TELEMETRY_OPTOUT: 1
