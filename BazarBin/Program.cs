@@ -4,9 +4,9 @@ using BazarBin.Data;
 using BazarBin.Models;
 using BazarBin.Options;
 using BazarBin.Services;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
+using ModelContextProtocol.Client;
 using Npgsql;
 using OpenAI;
 using OpenAI.Chat;
@@ -17,7 +17,8 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var importConnectionString = builder.Configuration.GetConnectionString("ImportDatabase")
-    ?? throw new InvalidOperationException("Connection string 'ImportDatabase' is not configured.");
+                             ?? throw new InvalidOperationException(
+                                 "Connection string 'ImportDatabase' is not configured.");
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(importConnectionString));
@@ -26,14 +27,15 @@ builder.Services.Configure<ImportOptions>(builder.Configuration.GetSection("Impo
 builder.Services.AddScoped<ICsvImportService, CsvImportService>();
 builder.Services.AddSingleton<TableSchemaService>();
 builder.Services.AddChatClient(sp =>
-        new ChatClient(
-            "gpt-4o-mini",
-            new ApiKeyCredential(builder.Configuration["OpenAiKey"] ?? throw new InvalidOperationException("OpenAiKey is required.")),
+    new ChatClient(
+            "gpt-5",
+            new ApiKeyCredential(builder.Configuration["OpenAiKey"] ??
+                                 throw new InvalidOperationException("OpenAiKey is required.")),
             new OpenAIClientOptions
             {
-                NetworkTimeout = TimeSpan.FromSeconds(100)
+                NetworkTimeout = TimeSpan.FromSeconds(300)
             })
-            .AsIChatClient());
+        .AsIChatClient()).UseFunctionInvocation(configure: x => { x.IncludeDetailedErrors = true; });
 
 var app = builder.Build();
 
@@ -85,53 +87,63 @@ app.MapGet("/datasets", async (ApplicationDbContext dbContext, CancellationToken
         return operation;
     });
 
-app.MapPost("/imports", async (HttpRequest request, ICsvImportService importService, CancellationToken cancellationToken) =>
-    {
-        if (!request.HasFormContentType)
+app.MapPost("/imports",
+        async (HttpRequest request, ICsvImportService importService, CancellationToken cancellationToken) =>
         {
-            return Results.BadRequest("Request must be multipart/form-data.");
-        }
+            if (!request.HasFormContentType)
+            {
+                return Results.BadRequest("Request must be multipart/form-data.");
+            }
 
-        var form = await request.ReadFormAsync(cancellationToken);
+            var form = await request.ReadFormAsync(cancellationToken);
 
-        if (!form.TryGetValue("schema", out var schemaValues) || schemaValues.Count == 0)
-        {
-            return Results.BadRequest("Form field 'schema' is required.");
-        }
+            if (!form.TryGetValue("schema", out var schemaValues) || schemaValues.Count == 0)
+            {
+                return Results.BadRequest("Form field 'schema' is required.");
+            }
 
-        var file = form.Files.GetFile("file");
-        if (file is null)
-        {
-            return Results.BadRequest("Form file 'file' is required.");
-        }
+            var file = form.Files.GetFile("file");
+            if (file is null)
+            {
+                return Results.BadRequest("Form file 'file' is required.");
+            }
 
-        CsvImportSchema? schema;
-        try
-        {
-            schema = JsonSerializer.Deserialize<CsvImportSchema>(schemaValues[0]!, schemaJsonOptions);
-        }
-        catch (JsonException ex)
-        {
-            return Results.BadRequest($"Schema JSON is invalid: {ex.Message}");
-        }
+            CsvImportSchema? schema;
+            try
+            {
+                schema = JsonSerializer.Deserialize<CsvImportSchema>(schemaValues[0]!, schemaJsonOptions);
+            }
+            catch (JsonException ex)
+            {
+                return Results.BadRequest($"Schema JSON is invalid: {ex.Message}");
+            }
 
-        if (schema is null)
-        {
-            return Results.BadRequest("Schema JSON could not be deserialized.");
-        }
+            if (schema is null)
+            {
+                return Results.BadRequest("Schema JSON could not be deserialized.");
+            }
 
-        await using var csvStream = file.OpenReadStream();
-        var result = await importService.ImportAsync(csvStream, schema, cancellationToken);
+            await using var csvStream = file.OpenReadStream();
+            var result = await importService.ImportAsync(csvStream, schema, cancellationToken);
 
-        return Results.Ok(result);
-    })
+            return Results.Ok(result);
+        })
     .WithName("ImportCsv")
     .WithOpenApi(operation =>
     {
         operation.Summary = "Creates a PostgreSQL table from a CSV file and imports its rows.";
-        operation.Description = "Upload a CSV file alongside a schema definition to build a table in the import schema and bulk load the data.";
+        operation.Description =
+            "Upload a CSV file alongside a schema definition to build a table in the import schema and bulk load the data.";
         return operation;
     });
+
+static async Task<IMcpClient> CreateMcpClient() =>
+    await McpClientFactory.CreateAsync(new StdioClientTransport(new StdioClientTransportOptions
+    {
+        Name = "BazarBin",
+        Command = "dotnet",
+        Arguments = ["run", "--project", @"C:\Projects\Github\BazarBin\BazarBin.Mcp.Server", "--no-build"],
+    }));
 
 app.MapPost("/prompt/{id:int}", async (
         int id,
@@ -155,7 +167,8 @@ app.MapPost("/prompt/{id:int}", async (
         TableSchemaResult schemaResult;
         try
         {
-            schemaResult = await tableSchemaService.GetTableSchemaAsync(dataSet.SchemaName, dataSet.TableName, cancellationToken);
+            schemaResult =
+                await tableSchemaService.GetTableSchemaAsync(dataSet.SchemaName, dataSet.TableName, cancellationToken);
         }
         catch (InvalidOperationException ex)
         {
@@ -170,7 +183,12 @@ app.MapPost("/prompt/{id:int}", async (
         var schemaJson = JsonSerializer.Serialize(schemaPayload, tableSchemaSerializationOptions);
         var combinedPrompt = $"/*\n{schemaJson}\n*/\n\n{request.Prompt}";
 
-        var response = await chatClient.GetResponseAsync(combinedPrompt, cancellationToken: cancellationToken);
+        var mcpClient = await CreateMcpClient();
+
+        var tools = await mcpClient.ListToolsAsync(cancellationToken: cancellationToken);
+
+        var response = await chatClient.GetResponseAsync(combinedPrompt, new ChatOptions { Tools = [..tools] },
+            cancellationToken: cancellationToken);
         var responseText = response.ToString();
 
         return Results.Ok(new PromptResponse(combinedPrompt, responseText));
@@ -179,9 +197,9 @@ app.MapPost("/prompt/{id:int}", async (
     .WithOpenApi(operation =>
     {
         operation.Summary = "Enrich a prompt with dataset schema details and send it to the AI client.";
-        operation.Description = "Loads the stored schema for the specified dataset, prefixes it as a formatted comment, forwards the combined prompt to the configured AI model, and returns the AI response.";
+        operation.Description =
+            "Loads the stored schema for the specified dataset, prefixes it as a formatted comment, forwards the combined prompt to the configured AI model, and returns the AI response.";
         return operation;
     });
 
 app.Run();
-

@@ -1,5 +1,5 @@
 @BazarBin_HostAddress = http://localhost:5275
-@DataSetId = 1
+@DataSetId = 2
 
 ### List available data sets
 GET {{BazarBin_HostAddress}}/datasets
@@ -11,5 +11,5 @@ Content-Type: application/json
 Accept: application/json
 
 {
-  "prompt": "Summarize the key metrics for this dataset."
+  "prompt": "Most Expensive Product"
 }
