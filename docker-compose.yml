@@ -1,0 +1,6 @@
+﻿services:
+  bazarbin:
+    image: bazarbin
+    build:
+      context: .
+      dockerfile: BazarBin/Dockerfile
