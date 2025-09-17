@@ -234,22 +234,21 @@ public sealed partial class CsvImportService : ICsvImportService
 
         if (!string.IsNullOrWhiteSpace(tableComment))
         {
-            var tableCommentSql = $"COMMENT ON TABLE {qualifiedTableName} IS @comment;";
+            var tableCommentSql = BuildTableCommentSql(qualifiedTableName, tableComment);
             await using var tableCommentCommand = new NpgsqlCommand(tableCommentSql, connection, transaction);
-            tableCommentCommand.Parameters.AddWithValue("comment", tableComment);
             await tableCommentCommand.ExecuteNonQueryAsync(cancellationToken);
         }
 
         foreach (var column in includedColumns)
         {
-            if (column.Comment is null)
+            var columnComment = column.Comment;
+            if (string.IsNullOrWhiteSpace(columnComment))
             {
                 continue;
             }
 
-            var commentSql = $"COMMENT ON COLUMN {qualifiedTableName}.{QuoteIdentifier(column.Name)} IS @comment;";
+            var commentSql = BuildColumnCommentSql(qualifiedTableName, column.Name, columnComment);
             await using var commentCommand = new NpgsqlCommand(commentSql, connection, transaction);
-            commentCommand.Parameters.AddWithValue("comment", column.Comment);
             await commentCommand.ExecuteNonQueryAsync(cancellationToken);
         }
     }
@@ -311,6 +310,18 @@ public sealed partial class CsvImportService : ICsvImportService
     }
 
     private static string QuoteIdentifier(string identifier) => $"\"{identifier.Replace("\"", "\"\"")}\"";
+
+    private static string BuildTableCommentSql(string qualifiedTableName, string comment) =>
+        $"COMMENT ON TABLE {qualifiedTableName} IS {QuoteLiteral(comment)};";
+
+    private static string BuildColumnCommentSql(string qualifiedTableName, string columnName, string comment) =>
+        $"COMMENT ON COLUMN {qualifiedTableName}.{QuoteIdentifier(columnName)} IS {QuoteLiteral(comment)};";
+
+    private static string QuoteLiteral(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return $"'{value.Replace("'", "''")}'";
+    }
 
     private sealed record ColumnDefinition(string Name, int SourceIndex, NpgsqlDbType DbType, Func<string?, object?> Convert);
 

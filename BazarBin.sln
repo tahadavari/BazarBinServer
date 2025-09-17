@@ -12,6 +12,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BazarBin.Mcp.Client", "Baza
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BazarBin.Mcp.Server", "BazarBin.Mcp.Server\BazarBin.Mcp.Server.csproj", "{7791E5A3-C73D-416F-A1F4-491D8E6A789C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BazarBin.Tests", "BazarBin.Tests\BazarBin.Tests.csproj", "{D37C3B87-6ECF-4D0A-9E9C-1A1DADDDC2F2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -26,9 +28,13 @@ Global
 		{B4FE346A-2EC4-4D86-9588-1013306103EC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B4FE346A-2EC4-4D86-9588-1013306103EC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B4FE346A-2EC4-4D86-9588-1013306103EC}.Release|Any CPU.Build.0 = Release|Any CPU
-		{7791E5A3-C73D-416F-A1F4-491D8E6A789C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{7791E5A3-C73D-416F-A1F4-491D8E6A789C}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{7791E5A3-C73D-416F-A1F4-491D8E6A789C}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{7791E5A3-C73D-416F-A1F4-491D8E6A789C}.Release|Any CPU.Build.0 = Release|Any CPU
-	EndGlobalSection
+                {7791E5A3-C73D-416F-A1F4-491D8E6A789C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+                {7791E5A3-C73D-416F-A1F4-491D8E6A789C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+                {7791E5A3-C73D-416F-A1F4-491D8E6A789C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+                {7791E5A3-C73D-416F-A1F4-491D8E6A789C}.Release|Any CPU.Build.0 = Release|Any CPU
+                {D37C3B87-6ECF-4D0A-9E9C-1A1DADDDC2F2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+                {D37C3B87-6ECF-4D0A-9E9C-1A1DADDDC2F2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+                {D37C3B87-6ECF-4D0A-9E9C-1A1DADDDC2F2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+                {D37C3B87-6ECF-4D0A-9E9C-1A1DADDDC2F2}.Release|Any CPU.Build.0 = Release|Any CPU
+        EndGlobalSection
 EndGlobal
