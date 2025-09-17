@@ -4,3 +4,21 @@
     build:
       context: .
       dockerfile: BazarBin/Dockerfile
+
+  webapplication1:
+    image: webapplication1
+    build:
+      context: .
+      dockerfile: WebApplication1/Dockerfile
+
+  bazarbin.mcp.client:
+    image: bazarbin.mcp.client
+    build:
+      context: .
+      dockerfile: BazarBin.Mcp.Client/Dockerfile
+
+  bazarbin.mcp.server:
+    image: bazarbin.mcp.server
+    build:
+      context: .
+      dockerfile: BazarBin.Mcp.Server/Dockerfile
