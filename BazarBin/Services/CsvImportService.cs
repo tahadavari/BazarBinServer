@@ -141,43 +141,45 @@ public sealed partial class CsvImportService : ICsvImportService
 
         var copyCommand = $"COPY {qualifiedTableName} ({string.Join(", ", columnDefinitions.Select(c => QuoteIdentifier(c.Name)))} ) FROM STDIN (FORMAT BINARY)";
 
-        await using var writer = await connection.BeginBinaryImportAsync(copyCommand, cancellationToken);
-
         var rowCount = 0;
 
-        async Task WriteCurrentRowAsync()
+        await using (var writer = await connection.BeginBinaryImportAsync(copyCommand, cancellationToken))
         {
-            await writer.StartRowAsync(cancellationToken);
-
-            foreach (var definition in columnDefinitions)
+            async Task WriteCurrentRowAsync()
             {
-                var rawValue = csv.GetField(definition.SourceIndex);
-                var typedValue = definition.Convert(rawValue);
+                await writer.StartRowAsync(cancellationToken);
 
-                if (typedValue is null)
+                foreach (var definition in columnDefinitions)
                 {
-                    await writer.WriteNullAsync(cancellationToken);
+                    var rawValue = csv.GetField(definition.SourceIndex);
+                    var typedValue = definition.Convert(rawValue);
+
+                    if (typedValue is null)
+                    {
+                        await writer.WriteNullAsync(cancellationToken);
+                    }
+                    else
+                    {
+                        await writer.WriteAsync(typedValue, definition.DbType, cancellationToken);
+                    }
                 }
-                else
-                {
-                    await writer.WriteAsync(typedValue, definition.DbType, cancellationToken);
-                }
+
+                rowCount++;
             }
 
-            rowCount++;
+            if (!hasHeaderRecord)
+            {
+                await WriteCurrentRowAsync();
+            }
+
+            while (await csv.ReadAsync())
+            {
+                await WriteCurrentRowAsync();
+            }
+
+            await writer.CompleteAsync(cancellationToken);
         }
 
-        if (!hasHeaderRecord)
-        {
-            await WriteCurrentRowAsync();
-        }
-
-        while (await csv.ReadAsync())
-        {
-            await WriteCurrentRowAsync();
-        }
-
-        await writer.CompleteAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
         await UpsertDataSetAsync(targetSchema, schema.TableName, cancellationToken);
