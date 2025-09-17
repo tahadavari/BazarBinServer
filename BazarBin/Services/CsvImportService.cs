@@ -85,9 +85,11 @@ public sealed partial class CsvImportService : ICsvImportService
             csvStream.Seek(0, SeekOrigin.Begin);
         }
 
+        var hasHeaderRecord = schema.FirstRowIsHeader;
+
         var csvConfiguration = new CsvConfiguration(CultureInfo.InvariantCulture)
         {
-            HasHeaderRecord = true,
+            HasHeaderRecord = hasHeaderRecord,
             MissingFieldFound = null,
             BadDataFound = null,
             TrimOptions = TrimOptions.Trim,
@@ -102,17 +104,24 @@ public sealed partial class CsvImportService : ICsvImportService
             throw new InvalidOperationException("CSV file is empty.");
         }
 
-        csv.ReadHeader();
-        var header = csv.HeaderRecord ?? Array.Empty<string>();
-        if (header.Length == 0)
+        if (hasHeaderRecord)
         {
-            throw new InvalidOperationException("CSV file must contain a header row.");
-        }
+            csv.ReadHeader();
+            var header = csv.HeaderRecord ?? Array.Empty<string>();
+            if (header.Length == 0)
+            {
+                throw new InvalidOperationException("CSV file must contain a header row.");
+            }
 
-        if (header.Length != orderedColumns.Count ||
-            !header.Zip(orderedColumns, (headerName, column) => string.Equals(headerName, column.Name, StringComparison.OrdinalIgnoreCase)).All(match => match))
+            if (header.Length != orderedColumns.Count ||
+                !header.Zip(orderedColumns, (headerName, column) => string.Equals(headerName, column.Name, StringComparison.OrdinalIgnoreCase)).All(match => match))
+            {
+                throw new InvalidOperationException("CSV header does not match the provided schema.");
+            }
+        }
+        else if (csv.Parser.Count != orderedColumns.Count)
         {
-            throw new InvalidOperationException("CSV header does not match the provided schema.");
+            throw new InvalidOperationException("CSV row column count does not match the provided schema.");
         }
 
         var columnDefinitions = includedColumns
@@ -136,7 +145,7 @@ public sealed partial class CsvImportService : ICsvImportService
 
         var rowCount = 0;
 
-        while (await csv.ReadAsync())
+        async Task WriteCurrentRowAsync()
         {
             await writer.StartRowAsync(cancellationToken);
 
@@ -156,6 +165,16 @@ public sealed partial class CsvImportService : ICsvImportService
             }
 
             rowCount++;
+        }
+
+        if (!hasHeaderRecord)
+        {
+            await WriteCurrentRowAsync();
+        }
+
+        while (await csv.ReadAsync())
+        {
+            await WriteCurrentRowAsync();
         }
 
         await writer.CompleteAsync(cancellationToken);

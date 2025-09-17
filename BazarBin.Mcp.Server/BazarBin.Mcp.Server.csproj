@@ -5,9 +5,12 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
     </PropertyGroup>
-    <ItemGroup>
-        <PackageReference Include="Npgsql" Version="8.0.3" />
-    </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Npgsql" Version="8.0.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\BazarBin\Services\TableSchemaService.cs" Link="Services/TableSchemaService.cs" />
+  </ItemGroup>
     <ItemGroup>
         <Content Include="..\.dockerignore">
             <Link>.dockerignore</Link>
