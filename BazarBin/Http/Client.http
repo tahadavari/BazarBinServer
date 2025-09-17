@@ -1,0 +1,15 @@
+@BazarBin_HostAddress = http://localhost:5275
+@DataSetId = 1
+
+### List available data sets
+GET {{BazarBin_HostAddress}}/datasets
+Accept: application/json
+
+### Send an AI prompt for a specific data set
+POST {{BazarBin_HostAddress}}/prompt/{{DataSetId}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "prompt": "Summarize the key metrics for this dataset."
+}
