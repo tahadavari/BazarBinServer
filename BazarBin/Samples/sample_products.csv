@@ -1,0 +1,4 @@
+product_id,product_name,category,price,stock_quantity,is_active,imported_at
+1001,Sample Widget,Hardware,19.99,150,true,2024-05-01T10:15:00Z
+1002,Basic Hammer,Hardware,9.50,320,true,2024-05-02T08:20:00Z
+1003,Garden Hose,Garden,24.99,75,false,2024-05-03T12:05:00Z

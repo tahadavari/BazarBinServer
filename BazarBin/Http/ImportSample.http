@@ -1,0 +1,30 @@
+@BazarBin_HostAddress = http://localhost:5275
+
+### Import sample products CSV
+POST {{BazarBin_HostAddress}}/imports
+Content-Type: multipart/form-data; boundary=ImportBoundary
+
+--ImportBoundary
+Content-Disposition: form-data; name="schema"
+Content-Type: application/json
+
+{
+  "TableName": "sample_products",
+  "TableComment": "Sample products imported for demonstration.",
+  "Columns": [
+    { "Name": "product_id", "DbType": "integer" },
+    { "Name": "product_name", "DbType": "text" },
+    { "Name": "category", "DbType": "text" },
+    { "Name": "price", "DbType": "numeric(10,2)" },
+    { "Name": "stock_quantity", "DbType": "integer" },
+    { "Name": "is_active", "DbType": "boolean" },
+    { "Name": "imported_at", "DbType": "timestamp with time zone" }
+  ]
+}
+
+--ImportBoundary
+Content-Disposition: form-data; name="file"; filename="sample_products.csv"
+Content-Type: text/csv
+
+< ./Samples/sample_products.csv
+--ImportBoundary--

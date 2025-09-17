@@ -1,13 +1,33 @@
+using System.Text.Json;
+using BazarBin.Data;
+using BazarBin.Models;
+using BazarBin.Options;
+using BazarBin.Services;
+using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+var importConnectionString = builder.Configuration.GetConnectionString("ImportDatabase")
+    ?? throw new InvalidOperationException("Connection string 'ImportDatabase' is not configured.");
+
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseNpgsql(importConnectionString));
+
+builder.Services.Configure<ImportOptions>(builder.Configuration.GetSection("ImportOptions"));
+builder.Services.AddScoped<ICsvImportService, CsvImportService>();
+
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    dbContext.Database.Migrate();
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -16,29 +36,83 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-var summaries = new[]
+var schemaJsonOptions = new JsonSerializerOptions
 {
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
+    PropertyNameCaseInsensitive = true,
+    ReadCommentHandling = JsonCommentHandling.Skip,
+    AllowTrailingCommas = true
 };
 
-app.MapGet("/weatherforecast", () =>
+app.MapGet("/datasets", async (ApplicationDbContext dbContext, CancellationToken cancellationToken) =>
     {
-        var forecast = Enumerable.Range(1, 5).Select(index =>
-                new WeatherForecast
-                (
-                    DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-                    Random.Shared.Next(-20, 55),
-                    summaries[Random.Shared.Next(summaries.Length)]
-                ))
-            .ToArray();
-        return forecast;
+        var dataSets = await dbContext.DataSets
+            .OrderByDescending(dataSet => dataSet.ImportedAt)
+            .Select(dataSet => new
+            {
+                dataSet.Id,
+                dataSet.SchemaName,
+                dataSet.TableName,
+                dataSet.ImportedAt
+            })
+            .ToListAsync(cancellationToken);
+
+        return Results.Ok(dataSets);
     })
-    .WithName("GetWeatherForecast")
-    .WithOpenApi();
+    .WithName("GetDataSets")
+    .WithOpenApi(operation =>
+    {
+        operation.Summary = "Lists imported data sets.";
+        operation.Description = "Retrieves the registered import tables with their identifiers.";
+        return operation;
+    });
+
+app.MapPost("/imports", async (HttpRequest request, ICsvImportService importService, CancellationToken cancellationToken) =>
+    {
+        if (!request.HasFormContentType)
+        {
+            return Results.BadRequest("Request must be multipart/form-data.");
+        }
+
+        var form = await request.ReadFormAsync(cancellationToken);
+
+        if (!form.TryGetValue("schema", out var schemaValues) || schemaValues.Count == 0)
+        {
+            return Results.BadRequest("Form field 'schema' is required.");
+        }
+
+        var file = form.Files.GetFile("file");
+        if (file is null)
+        {
+            return Results.BadRequest("Form file 'file' is required.");
+        }
+
+        CsvImportSchema? schema;
+        try
+        {
+            schema = JsonSerializer.Deserialize<CsvImportSchema>(schemaValues[0]!, schemaJsonOptions);
+        }
+        catch (JsonException ex)
+        {
+            return Results.BadRequest($"Schema JSON is invalid: {ex.Message}");
+        }
+
+        if (schema is null)
+        {
+            return Results.BadRequest("Schema JSON could not be deserialized.");
+        }
+
+        await using var csvStream = file.OpenReadStream();
+        var result = await importService.ImportAsync(csvStream, schema, cancellationToken);
+
+        return Results.Ok(result);
+    })
+    .WithName("ImportCsv")
+    .WithOpenApi(operation =>
+    {
+        operation.Summary = "Creates a PostgreSQL table from a CSV file and imports its rows.";
+        operation.Description = "Upload a CSV file alongside a schema definition to build a table in the import schema and bulk load the data.";
+        return operation;
+    });
 
 app.Run();
 
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
