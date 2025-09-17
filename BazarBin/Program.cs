@@ -4,7 +4,6 @@ using BazarBin.Data;
 using BazarBin.Models;
 using BazarBin.Options;
 using BazarBin.Services;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Npgsql;
@@ -17,7 +16,8 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var importConnectionString = builder.Configuration.GetConnectionString("ImportDatabase")
-    ?? throw new InvalidOperationException("Connection string 'ImportDatabase' is not configured.");
+                             ?? throw new InvalidOperationException(
+                                 "Connection string 'ImportDatabase' is not configured.");
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(importConnectionString));
@@ -35,8 +35,20 @@ builder.Services.AddChatClient(sp =>
             })
             .AsIChatClient());
 
-var app = builder.Build();
+var mayCorsName = "Cors";
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(name: mayCorsName,
+        policy =>
+        {
+            policy.WithOrigins("*");
+            policy.WithHeaders("*");
+            policy.WithMethods("*");
+        });
+});
 
+var app = builder.Build();
+app.UseCors(mayCorsName);
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -85,53 +97,56 @@ app.MapGet("/datasets", async (ApplicationDbContext dbContext, CancellationToken
         return operation;
     });
 
-app.MapPost("/imports", async (HttpRequest request, ICsvImportService importService, CancellationToken cancellationToken) =>
-    {
-        if (!request.HasFormContentType)
+app.MapPost("/imports",
+        async (HttpRequest request, ICsvImportService importService, CancellationToken cancellationToken) =>
         {
-            return Results.BadRequest("Request must be multipart/form-data.");
-        }
+            if (!request.HasFormContentType)
+            {
+                return Results.BadRequest("Request must be multipart/form-data.");
+            }
 
-        var form = await request.ReadFormAsync(cancellationToken);
+            var form = await request.ReadFormAsync(cancellationToken);
 
-        if (!form.TryGetValue("schema", out var schemaValues) || schemaValues.Count == 0)
-        {
-            return Results.BadRequest("Form field 'schema' is required.");
-        }
+            if (!form.TryGetValue("schema", out var schemaValues) || schemaValues.Count == 0)
+            {
+                return Results.BadRequest("Form field 'schema' is required.");
+            }
 
-        var file = form.Files.GetFile("file");
-        if (file is null)
-        {
-            return Results.BadRequest("Form file 'file' is required.");
-        }
+            var file = form.Files.GetFile("file");
+            if (file is null)
+            {
+                return Results.BadRequest("Form file 'file' is required.");
+            }
 
-        CsvImportSchema? schema;
-        try
-        {
-            schema = JsonSerializer.Deserialize<CsvImportSchema>(schemaValues[0]!, schemaJsonOptions);
-        }
-        catch (JsonException ex)
-        {
-            return Results.BadRequest($"Schema JSON is invalid: {ex.Message}");
-        }
+            CsvImportSchema? schema;
+            try
+            {
+                schema = JsonSerializer.Deserialize<CsvImportSchema>(schemaValues[0]!, schemaJsonOptions);
+            }
+            catch (JsonException ex)
+            {
+                return Results.BadRequest($"Schema JSON is invalid: {ex.Message}");
+            }
 
-        if (schema is null)
-        {
-            return Results.BadRequest("Schema JSON could not be deserialized.");
-        }
+            if (schema is null)
+            {
+                return Results.BadRequest("Schema JSON could not be deserialized.");
+            }
 
-        await using var csvStream = file.OpenReadStream();
-        var result = await importService.ImportAsync(csvStream, schema, cancellationToken);
+            await using var csvStream = file.OpenReadStream();
+            var result = await importService.ImportAsync(csvStream, schema, cancellationToken);
 
-        return Results.Ok(result);
-    })
+            return Results.Ok(result);
+        })
     .WithName("ImportCsv")
     .WithOpenApi(operation =>
     {
         operation.Summary = "Creates a PostgreSQL table from a CSV file and imports its rows.";
-        operation.Description = "Upload a CSV file alongside a schema definition to build a table in the import schema and bulk load the data.";
+        operation.Description =
+            "Upload a CSV file alongside a schema definition to build a table in the import schema and bulk load the data.";
         return operation;
     });
+
 
 app.MapPost("/prompt/{id:int}", async (
         int id,
@@ -184,4 +199,3 @@ app.MapPost("/prompt/{id:int}", async (
     });
 
 app.Run();
-
