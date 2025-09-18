@@ -6,6 +6,7 @@ using BazarBin.Options;
 using BazarBin.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Client;
 using Npgsql;
 using OpenAI;
@@ -26,6 +27,9 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.Configure<ImportOptions>(builder.Configuration.GetSection("ImportOptions"));
 builder.Services.AddScoped<ICsvImportService, CsvImportService>();
 builder.Services.AddSingleton<TableSchemaService>();
+builder.Services.AddSingleton<McpClientProvider>();
+builder.Services.AddSingleton<IMcpClientProvider>(sp => sp.GetRequiredService<McpClientProvider>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<McpClientProvider>());
 builder.Services.AddChatClient(sp =>
     new ChatClient(
             "gpt-5",
@@ -148,20 +152,14 @@ app.MapPost("/imports",
         return operation;
     });
 
-static async Task<IMcpClient> CreateMcpClient() =>
-    await McpClientFactory.CreateAsync(new StdioClientTransport(new StdioClientTransportOptions
-    {
-        Name = "BazarBin",
-        Command = "dotnet",
-        Arguments = ["run", "--project", @"C:\Projects\Github\BazarBin\BazarBin.Mcp.Server", "--no-build"],
-    }));
-
 app.MapPost("/prompt/{id:int}", async (
         int id,
         PromptRequest request,
         ApplicationDbContext dbContext,
         TableSchemaService tableSchemaService,
         IChatClient chatClient,
+        IMcpClientProvider mcpClientProvider,
+        ILogger<Program> logger,
         CancellationToken cancellationToken) =>
     {
         if (request is null || string.IsNullOrWhiteSpace(request.Prompt))
@@ -194,15 +192,45 @@ app.MapPost("/prompt/{id:int}", async (
         var schemaJson = JsonSerializer.Serialize(schemaPayload, tableSchemaSerializationOptions);
         var combinedPrompt = $"/*\n{schemaJson}\n*/\n\n{request.Prompt}";
 
-        var mcpClient = await CreateMcpClient();
+        IMcpClient mcpClient;
 
-        var tools = await mcpClient.ListToolsAsync(cancellationToken: cancellationToken);
+        try
+        {
+            mcpClient = await mcpClientProvider.GetClientAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to acquire MCP client instance.");
+            return Results.Problem("MCP server is unavailable. Check server logs for details.", statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
 
-        var response = await chatClient.GetResponseAsync(combinedPrompt, new ChatOptions { Tools = [..tools] },
-            cancellationToken: cancellationToken);
-        var responseText = response.ToString();
+        async Task<IResult> ExecuteWithClientAsync(IMcpClient client)
+        {
+            var tools = await client.ListToolsAsync(cancellationToken: cancellationToken);
+            var response = await chatClient.GetResponseAsync(combinedPrompt, new ChatOptions { Tools = [..tools] },
+                cancellationToken: cancellationToken);
+            var responseText = response.ToString();
+            return Results.Ok(new PromptResponse(combinedPrompt, responseText));
+        }
 
-        return Results.Ok(new PromptResponse(combinedPrompt, responseText));
+        try
+        {
+            return await ExecuteWithClientAsync(mcpClient);
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning(ex, "MCP tool execution failed; attempting client refresh.");
+            try
+            {
+                var refreshedClient = await mcpClientProvider.RefreshClientAsync(cancellationToken);
+                return await ExecuteWithClientAsync(refreshedClient);
+            }
+            catch (Exception refreshEx)
+            {
+                logger.LogError(refreshEx, "Retrying MCP tool execution failed.");
+                return Results.Problem("MCP server is unavailable. Check server logs for details.", statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
+        }
     })
     .WithName("SendPrompt")
     .WithOpenApi(operation =>
