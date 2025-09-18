@@ -9,7 +9,7 @@ Content-Disposition: form-data; name="schema"
 Content-Type: application/json
 
 {
-  "TableName": "sample_products",
+  "TableName": "sample_products1",
   "TableComment": "Sample products imported for demonstration.",
   "Columns": [
     { "Name": "product_id", "DbType": "integer" },
@@ -26,5 +26,5 @@ Content-Type: application/json
 Content-Disposition: form-data; name="file"; filename="sample_products.csv"
 Content-Type: text/csv
 
-< ./Samples/sample_products.csv
+< ../Samples/sample_products.csv
 --ImportBoundary--

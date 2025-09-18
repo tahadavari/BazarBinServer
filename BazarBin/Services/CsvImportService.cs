@@ -85,9 +85,11 @@ public sealed partial class CsvImportService : ICsvImportService
             csvStream.Seek(0, SeekOrigin.Begin);
         }
 
+        var hasHeaderRecord = schema.FirstRowIsHeader;
+
         var csvConfiguration = new CsvConfiguration(CultureInfo.InvariantCulture)
         {
-            HasHeaderRecord = true,
+            HasHeaderRecord = hasHeaderRecord,
             MissingFieldFound = null,
             BadDataFound = null,
             TrimOptions = TrimOptions.Trim,
@@ -102,17 +104,24 @@ public sealed partial class CsvImportService : ICsvImportService
             throw new InvalidOperationException("CSV file is empty.");
         }
 
-        csv.ReadHeader();
-        var header = csv.HeaderRecord ?? Array.Empty<string>();
-        if (header.Length == 0)
+        if (hasHeaderRecord)
         {
-            throw new InvalidOperationException("CSV file must contain a header row.");
-        }
+            csv.ReadHeader();
+            var header = csv.HeaderRecord ?? Array.Empty<string>();
+            if (header.Length == 0)
+            {
+                throw new InvalidOperationException("CSV file must contain a header row.");
+            }
 
-        if (header.Length != orderedColumns.Count ||
-            !header.Zip(orderedColumns, (headerName, column) => string.Equals(headerName, column.Name, StringComparison.OrdinalIgnoreCase)).All(match => match))
+            if (header.Length != orderedColumns.Count ||
+                !header.Zip(orderedColumns, (headerName, column) => string.Equals(headerName, column.Name, StringComparison.OrdinalIgnoreCase)).All(match => match))
+            {
+                throw new InvalidOperationException("CSV header does not match the provided schema.");
+            }
+        }
+        else if (csv.Parser.Count != orderedColumns.Count)
         {
-            throw new InvalidOperationException("CSV header does not match the provided schema.");
+            throw new InvalidOperationException("CSV row column count does not match the provided schema.");
         }
 
         var columnDefinitions = includedColumns
@@ -132,33 +141,45 @@ public sealed partial class CsvImportService : ICsvImportService
 
         var copyCommand = $"COPY {qualifiedTableName} ({string.Join(", ", columnDefinitions.Select(c => QuoteIdentifier(c.Name)))} ) FROM STDIN (FORMAT BINARY)";
 
-        await using var writer = await connection.BeginBinaryImportAsync(copyCommand, cancellationToken);
-
         var rowCount = 0;
 
-        while (await csv.ReadAsync())
+        await using (var writer = await connection.BeginBinaryImportAsync(copyCommand, cancellationToken))
         {
-            await writer.StartRowAsync(cancellationToken);
-
-            foreach (var definition in columnDefinitions)
+            async Task WriteCurrentRowAsync()
             {
-                var rawValue = csv.GetField(definition.SourceIndex);
-                var typedValue = definition.Convert(rawValue);
+                await writer.StartRowAsync(cancellationToken);
 
-                if (typedValue is null)
+                foreach (var definition in columnDefinitions)
                 {
-                    await writer.WriteNullAsync(cancellationToken);
+                    var rawValue = csv.GetField(definition.SourceIndex);
+                    var typedValue = definition.Convert(rawValue);
+
+                    if (typedValue is null)
+                    {
+                        await writer.WriteNullAsync(cancellationToken);
+                    }
+                    else
+                    {
+                        await writer.WriteAsync(typedValue, definition.DbType, cancellationToken);
+                    }
                 }
-                else
-                {
-                    await writer.WriteAsync(typedValue, definition.DbType, cancellationToken);
-                }
+
+                rowCount++;
             }
 
-            rowCount++;
+            if (!hasHeaderRecord)
+            {
+                await WriteCurrentRowAsync();
+            }
+
+            while (await csv.ReadAsync())
+            {
+                await WriteCurrentRowAsync();
+            }
+
+            await writer.CompleteAsync(cancellationToken);
         }
 
-        await writer.CompleteAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
         await UpsertDataSetAsync(targetSchema, schema.TableName, cancellationToken);
@@ -215,22 +236,21 @@ public sealed partial class CsvImportService : ICsvImportService
 
         if (!string.IsNullOrWhiteSpace(tableComment))
         {
-            var tableCommentSql = "COMMENT ON TABLE {qualifiedTableName} IS @comment;";
+            var tableCommentSql = BuildTableCommentSql(qualifiedTableName, tableComment);
             await using var tableCommentCommand = new NpgsqlCommand(tableCommentSql, connection, transaction);
-            tableCommentCommand.Parameters.AddWithValue("comment", tableComment);
             await tableCommentCommand.ExecuteNonQueryAsync(cancellationToken);
         }
 
         foreach (var column in includedColumns)
         {
-            if (column.Comment is null)
+            var columnComment = column.Comment;
+            if (string.IsNullOrWhiteSpace(columnComment))
             {
                 continue;
             }
 
-            var commentSql = $"COMMENT ON COLUMN {qualifiedTableName}.{QuoteIdentifier(column.Name)} IS @comment;";
+            var commentSql = BuildColumnCommentSql(qualifiedTableName, column.Name, columnComment);
             await using var commentCommand = new NpgsqlCommand(commentSql, connection, transaction);
-            commentCommand.Parameters.AddWithValue("comment", column.Comment);
             await commentCommand.ExecuteNonQueryAsync(cancellationToken);
         }
     }
@@ -292,6 +312,18 @@ public sealed partial class CsvImportService : ICsvImportService
     }
 
     private static string QuoteIdentifier(string identifier) => $"\"{identifier.Replace("\"", "\"\"")}\"";
+
+    private static string BuildTableCommentSql(string qualifiedTableName, string comment) =>
+        $"COMMENT ON TABLE {qualifiedTableName} IS {QuoteLiteral(comment)};";
+
+    private static string BuildColumnCommentSql(string qualifiedTableName, string columnName, string comment) =>
+        $"COMMENT ON COLUMN {qualifiedTableName}.{QuoteIdentifier(columnName)} IS {QuoteLiteral(comment)};";
+
+    private static string QuoteLiteral(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return $"'{value.Replace("'", "''")}'";
+    }
 
     private sealed record ColumnDefinition(string Name, int SourceIndex, NpgsqlDbType DbType, Func<string?, object?> Convert);
 

@@ -1,25 +1,24 @@
 <Project>
-  <PropertyGroup>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <AnalysisLevel>latest</AnalysisLevel>
-    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
-    <Deterministic>true</Deterministic>
-  </PropertyGroup>
-  <ItemGroup>
-    <EditorConfigFiles Include=".editorconfig" Condition="Exists('.editorconfig')" />
-  </ItemGroup>
+    <PropertyGroup>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <AnalysisLevel>latest</AnalysisLevel>
+        <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+        <Deterministic>true</Deterministic>
+    </PropertyGroup>
+    <ItemGroup>
+        <EditorConfigFiles Include=".editorconfig" Condition="Exists('.editorconfig')"/>
+    </ItemGroup>
 
-  <ItemGroup Condition="'$(MSBuildProjectName)' == 'BazarBin.Mcp.Client'">
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.7" />
-    <PackageReference Include="ModelContextProtocol" Version="0.3.0-preview.4" />
-    <PackageReference Include="Microsoft.Extensions.AI" Version="9.9.0" />
-    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="9.9.0-preview.1.25458.4" />
-  </ItemGroup>
+    <ItemGroup Condition="'$(MSBuildProjectName)' == 'BazarBin.Mcp.Server'">
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.7"/>
+        <PackageReference Include="ModelContextProtocol" Version="0.3.0-preview.4"/>
+    </ItemGroup>
 
-  <ItemGroup Condition="'$(MSBuildProjectName)' == 'BazarBin.Mcp.Server'">
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.7"/>
-    <PackageReference Include="ModelContextProtocol" Version="0.3.0-preview.4" />
-  </ItemGroup>
+    <ItemGroup Condition="'$(MSBuildProjectName)' == 'BazarBin'">
+        <PackageReference Include="ModelContextProtocol" Version="0.3.0-preview.4"/>
+        <PackageReference Include="Microsoft.Extensions.AI" Version="9.9.0"/>
+        <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="9.9.0-preview.1.25458.4"/>
+    </ItemGroup>
 </Project>
