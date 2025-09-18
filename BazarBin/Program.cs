@@ -36,8 +36,19 @@ builder.Services.AddChatClient(sp =>
                 NetworkTimeout = TimeSpan.FromSeconds(300)
             })
         .AsIChatClient()).UseFunctionInvocation(configure: x => { x.IncludeDetailedErrors = true; });
-
+const string corsPolicyName = "Cors";
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(name: corsPolicyName,
+        policy =>
+        {
+            policy.WithOrigins("*");
+            policy.WithHeaders("*");
+            policy.WithMethods("*");
+        });
+});
 var app = builder.Build();
+app.UseCors(corsPolicyName);
 
 using (var scope = app.Services.CreateScope())
 {
